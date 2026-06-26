@@ -1,0 +1,607 @@
+---
+title: "Assignment QA"
+---
+
+# Assignment Q&A — Spoken Answers
+
+> These are written the way I'd actually say them in the room. Answer first, then the reasoning, then what I'd do differently, then a tie-back to real work. Short sentences. No script-reading — use these as the shape of the answer, not the exact words.
+>
+> **Banned words (don't say these):** leverage, robust, seamless, cutting-edge, enterprise-grade, best-in-class, synergy, utilize, comprehensive, "production-ready" (only say "production" when actually talking about production).
+
+---
+
+## Product Thinking
+
+**Q1. Tell me about the assignment. What did you build?**
+
+So I built a tracing and observability dashboard for LLM apps. The idea is you can look at your traces, dig into a single trace and its spans, track issues, and see analytics — cost, tokens, latency, error rates. I styled it to feel like Linear: quiet, dense, fast.
+
+The whole thing runs on static mock data, so there's no backend to set up. My thinking was that the real value I could show in a take-home is the front-end craft — the component library underneath, the interactions, and how it all feels. So that's where I spent my time.
+
+**Q2. Why did you choose this architecture?**
+
+The main reason was I wanted each layer to do one job. Raw data sits in JSON. Then I have a layer of plain functions that turn that data into something the UI can use. On top of that, the state lives in React Context and a few hooks. Then there's a library of dumb UI components, and finally the pages that put it all together.
+
+The nice thing about that is data flows in one direction. If I swap the JSON for a real API later, I only touch the data layer — the components don't care where the data came from. I've built this way at MyBizz too, where keeping the data logic separate from the UI made it much easier to change one without breaking the other.
+
+**Q3. Walk me through your folder structure.**
+
+Sure. Under `src` I've got a few clear folders. `data` is the raw JSON. `lib` is the plain logic — things like flattening traces or computing dashboard stats. `contexts` and `hooks` hold the state. `components/ui` is the component library — generic stuff like buttons, inputs, tables. `components/<feature>` is the domain stuff built from those — the traces panel, the issues board. And `app` is the routes.
+
+The rule I followed is: generic things live in `ui`, anything that knows about "traces" or "issues" lives in a feature folder. That way the `ui` folder could be pulled out into its own package tomorrow without dragging app logic with it.
+
+**Q4. Why did you build your own UI components instead of using a library?**
+
+The role is about owning a component library, so I wanted to show I can actually build one, not just wire up someone else's. That said, I didn't reinvent everything — I built on Radix for the hard parts like focus handling and keyboard behavior, and put my own styling and API on top.
+
+So the split is: Radix owns the behavior that's easy to get wrong, and I own how it looks and how the API feels. If I'd just dropped in a full component kit, the styling and the API wouldn't have been mine, and that's exactly the part this job is about. I did the same thing at MyBizz — built a UI Kit on top of solid primitives so the design stayed consistent across products.
+
+**Q5. Why did you use static JSON instead of a backend?**
+
+That was a deliberate decision. A backend would've eaten a big chunk of the time, and it wouldn't have shown anything about my front-end work, which is the point of the role.
+
+With static JSON the whole thing runs with zero setup, and I still get to design the data layer properly — typed shapes, plain functions that transform the data. So when a real API shows up, the swap is small because the UI already talks to a clean data layer, not to the JSON directly.
+
+**Q6. What were your priorities while building this?**
+
+Three things, in order. First, the component library — because that's the foundation everything else sits on. Second, interaction quality — keyboard navigation, the resizable panel, drag and drop, the command menu. Those are the things you can't fake and they're what make it feel good. Third, the design polish — spacing, motion, dark mode.
+
+I put tests, validation, and a backend lower on purpose, because with fixed mock data they'd add less value than getting the feel right.
+
+**Q7. What trade-offs did you make?**
+
+The big ones were no tests, no runtime validation, and no real backend. Given the time, I chose to spend it on the component architecture and the interactions, because those were the actual goals.
+
+The trade-off is the app isn't defended yet — there's no test suite catching regressions, and there's one spot where I read from localStorage without checking the shape. I know exactly where those gaps are, and I can walk through what I'd add first. For a take-home I think it was the right call; for a real product every one of those flips to "yes."
+
+**Q8. Which feature took the longest?**
+
+The trace detail panel and the data table. The table has sorting, grouping, row selection with shift-click ranges, and full keyboard navigation. Getting the keyboard part right — moving focus, selecting ranges, not fighting the browser — took the most fiddling.
+
+The detail panel was tricky because it's a resizable split view with two ways to look at the same data, a tree and a waterfall. Making that switch feel smooth and keeping the layout stable took a while.
+
+**Q9. What features would you add next?**
+
+The first thing would be connecting a real data source, because that unlocks everything else. After that, filtering and saved views on the traces, since that's what people actually live in day to day. Then real-time updates so new traces stream in.
+
+On the issues side, I'd add proper search and bulk actions. None of these are hard on top of what's there — the structure already supports them.
+
+**Q10. What part was more difficult than you expected?**
+
+Honestly, the keyboard navigation in the table. It sounds simple, but once you add grouping and collapsed sections, "move to the next row" isn't obvious anymore — you have to track the rows the user can actually see, not all the rows. I ended up keeping a separate list of visible rows just for navigation.
+
+The other one was making the waterfall view line up correctly with nested spans. Getting the depth and timing math right took a couple of tries.
+
+**Q11. If you had another week, what would you build?**
+
+I'd spend the first couple of days on the foundation — set up CI so linting and tests run on every change, and add a test suite starting with the plain logic functions since those are easy wins. Then I'd add runtime validation where data comes in.
+
+After that I'd connect a real backend, move the heavy read pages to render on the server, and add virtualization to the table so it handles big datasets. I'd tackle it in stages — foundation first, then features.
+
+**Q12. How would you validate whether users need it?**
+
+I'd start by watching how people actually debug a bad trace today, because that's the core job. If they're jumping between logs and dashboards, that tells me the trace-to-issue flow is the thing to nail.
+
+Then I'd ship a small version to a few real users and look at what they click, where they get stuck, and what they ask for. I'd rather put something rough in front of real users than guess in a meeting. I did this at MyBizz — we shipped early to the founder and a few customers and shaped the workflows from their actual usage.
+
+**Q13. How would you measure success?**
+
+For a tool like this, the real measure is time to find a problem. If someone can go from "something's wrong" to "here's the trace and here's the cause" faster than before, it's working.
+
+I'd track things like how often people open a trace from an alert, how long they stay stuck, and whether issues actually get resolved. Page-level metrics like load time matter too, but the main one is whether it helps people debug faster.
+
+---
+
+## Architecture
+
+**Q14. How do you separate business logic from UI?**
+
+I keep the logic in plain functions that don't know anything about React. In this project that's the `lib` folder — flattening traces, computing stats. Those just take data and return data.
+
+The components then call those functions and render the result. The win is the logic is easy to test on its own, and if the UI changes the logic doesn't. I've found this pays off most when requirements change, because you're editing one small function instead of untangling it from a component.
+
+**Q15. Why React Context?**
+
+The main reason was the amount of shared state is small. There's the issues list, the sidebar state, the shortcuts, and settings. Context handles that fine without adding another library.
+
+It also keeps the project easy to understand for someone new — Context is just React, there's nothing extra to learn. For the one piece of state that changes a lot, notifications, I used a small external store instead, because Context would re-render too much there.
+
+**Q16. Why no Redux or Zustand?**
+
+Because the app doesn't have enough shared state to justify them. Redux especially would've been a lot of boilerplate for very little gain here.
+
+If the shared state grew — say lots of components needed to read and write the same data, or I needed fine-grained updates without re-rendering everything — I'd reach for Zustand or Jotai before Redux. They're lighter and closer to how I already think. So it's not that I avoid them, it just wasn't the right size of problem.
+
+**Q17. How reusable are your components?**
+
+Pretty reusable, because the `ui` folder doesn't know anything about traces or issues. A button is just a button. The variants are typed, so you get autocomplete for the options, and they compose — like the button and its icon are separate pieces you put together.
+
+The feature components are less reusable on purpose, because they're specific to a screen. That's the line I draw: generic stuff is built to reuse, feature stuff is built to do one job well. It's the same approach as my UI Kit at MyBizz, which ended up used across six products.
+
+**Q18. Which layer owns the business logic?**
+
+The `lib` layer. That's where the rules live — how you compute an error rate, how you flatten a trace into rows, how you figure out the next issue ID. The components don't make those decisions, they just show the result.
+
+I like keeping it there because it's the one place to look when the logic is wrong, and it's the easiest layer to test.
+
+**Q19. How would another developer understand this project quickly?**
+
+The folder names tell most of the story — `data`, `lib`, `contexts`, `ui`, then features and pages. If you read it top to bottom, data flows one direction, so you can follow it.
+
+I also kept one component or hook per file, so nothing's hiding. If I were handing this off for real, I'd add a short README explaining the layers and probably Storybook so they can see the components on their own.
+
+**Q20. Which part of the architecture would you change today?**
+
+The issues context. Right now, every time I add or update an issue, it reads the whole list back from localStorage instead of trusting the state React already has. It works, but it's doing extra work and it's a bit confusing.
+
+I'd make React state the single source of truth and treat saving to localStorage as a side effect that happens after. Cleaner and fewer surprises.
+
+**Q21. Any code you'd refactor immediately?**
+
+Two spots. The trace flattening has a lot of type casts because the source JSON isn't fully typed — I'd fix that by validating the data at the edge so the casts go away. And the dashboard stats file loops over the data several separate times; if the dataset got big I'd combine those into one pass.
+
+Neither is urgent at this size, but those are the first two I'd clean up.
+
+**Q22. Which file is doing too much?**
+
+The trace detail panel. It handles the resize, the tree view, the waterfall view, copying the ID, and the prev/next navigation all in one place. It works, but it's grown.
+
+I'd split it — pull the tree and waterfall into their own components, and move the navigation into a small hook. Smaller pieces are easier to test and to change.
+
+**Q21b. What if the project doubled in size?**
+
+The structure holds up because it's already split by layer and by feature. Doubling the features mostly means adding more feature folders, not reworking the foundation.
+
+The two things I'd watch are the contexts and the component count. If more contexts pile up at the root, I'd split them finer or move hot state to a store. And if the component library got big, I'd pull it into its own package with its own docs and versioning so it doesn't get tangled with app code.
+
+---
+
+## Component Library
+
+**Q23. Why didn't you use the shadcn design tokens and styling?**
+
+Because the styling is the part the role is about, so I wanted it to be mine. I kept the idea of building on good primitives, but I built my own token system instead of shipping the default look.
+
+My tokens are semantic — things like "weak background" or "sub text" rather than raw colors. That's what makes dark mode and theming work without touching components. If I'd used the defaults, the design wouldn't be mine and dark mode would've been more of a fight.
+
+**Q24. What makes a good component API?**
+
+A good API is easy to use right and hard to use wrong. It should match how people already think, have sensible defaults, and not make you pass ten props to do a simple thing.
+
+My rule is: prefer composition over a pile of boolean flags. Instead of a button with `leftIcon`, `rightIcon`, `loading`, you give it children and it figures out the rest. Fewer props, more flexible. I learned that the hard way on the UI Kit — the components with too many booleans were the ones people kept getting confused by.
+
+**Q25. How do you think about composition?**
+
+I think about it as building small pieces that snap together, instead of one big component with a setting for every case. The button is a good example — there's a root and an icon, and you compose them. The table is the same idea: the table, the rows, the headers are separate pieces that share state behind the scenes.
+
+The reason is flexibility. The moment you try to cover every case with props, the component gets huge and brittle. Composition lets the person using it arrange things how they need.
+
+**Q26. Why not expose more props?**
+
+Because more props usually means a more confusing component, not a more powerful one. Every prop is something the next person has to understand, and combinations of props are where bugs hide.
+
+So I expose the few that matter — variant, size, that kind of thing — and handle the rest through composition and sensible defaults. If someone needs something unusual, composition gives them a way out without me having to predict it in advance.
+
+**Q27. How do you design component APIs?**
+
+I start from the call site. I write how I want to use the component first, then build to match that. It keeps the API honest, because it's shaped by real usage instead of by what's easy to build.
+
+Then I lean on three things: good defaults so the common case is one line, typed variants so the editor guides you, and composition for everything else. That's roughly the process I used for every component in the UI Kit.
+
+---
+
+## Design Decisions
+
+**Q28. Why Linear, and what did you borrow from Linear?**
+
+Linear because it's the bar for dense, fast, calm product design — and this is a tool engineers live in, so that fits. What I borrowed: the layout with a fixed sidebar and a thin header where only the content changes, the quiet use of color, and the keyboard-first feel.
+
+The biggest thing was their idea of using color only for meaning. Green, red, amber are for status. Everything else is gray. That keeps the screen calm and makes the important stuff pop.
+
+**Q29. Why this spacing?**
+
+I used a consistent spacing scale instead of picking numbers by eye. Things that belong together sit closer, groups get more space between them. That's what gives it rhythm.
+
+My thinking is that consistent spacing is most of what makes a UI feel polished, even if people can't say why. A few values used the same way everywhere beats lots of one-off pixel tweaks.
+
+**Q31. Why semantic tokens?**
+
+Because they make theming basically free. Instead of a component saying "use gray-100," it says "use weak background." Then dark mode just changes what "weak background" means, and every component follows.
+
+It also keeps things consistent — there's one place that decides colors, so the whole app stays in sync. If a component hardcoded colors, I'd be hunting them down for dark mode. I built my MyBizz design system the same way for that reason.
+
+**Q32. How did you think about dark mode?**
+
+I treated it as a second set of token values, not as inverting colors. Components never know which theme is on — they just use tokens, and the theme decides the actual colors.
+
+I also pulled back from pure black and pure white in dark mode, because full contrast is harsh on the eyes. The switch itself is handled by next-themes, so there's no flicker on load.
+
+**Q33. Why the splash screen?**
+
+Two reasons. One, it sets the tone — first impression matters, and a short, smooth intro signals the whole app is going to feel considered. Two, it's a small moment to show motion done with intent rather than for show.
+
+It's quick and it respects reduced-motion settings, so it's not in the way for people who don't want animation.
+
+**Q34. Why keyboard shortcuts?**
+
+Because this is a power-user tool. People debugging traces all day don't want to reach for the mouse every time. Command menu, jump between pages, navigate the list — all from the keyboard.
+
+I kept all the shortcuts in one config file so there's a single source of truth, and the same list feeds the command menu and the shortcuts help drawer. That way they can't drift apart.
+
+**Q35. What would you improve?**
+
+On the design side, I'd add real empty and loading states — right now the data shows up instantly so those are thin, but a real app needs them. I'd also do a proper pass on mobile, since I focused on the desktop experience first.
+
+And I'd put the component library into Storybook so the design and the states are documented in one place.
+
+**Q36. How did you balance aesthetics with usability?**
+
+My rule is usability wins when they conflict, but most of the time good design serves usability. Clear hierarchy, enough contrast, consistent spacing — those are pretty things that also make the app easier to use.
+
+Where I held back was decoration. No heavy shadows, no extra color. The restraint isn't just a look, it keeps the screen readable when it's full of data. So I didn't really treat them as opposites.
+
+---
+
+## Performance
+
+**Q37. What happens with 100,000 traces?**
+
+Right now it'd slow down, because the table renders every row. That's the first thing I'd fix for real data.
+
+The answer is virtualization — only render the rows that are actually on screen, and swap them as you scroll. The table's built on a headless table library, so I can add that without rewriting the sorting and selection logic. I'd also stop loading all the data at once and page it from the server.
+
+**Q38. How would you optimize rendering?**
+
+I'd measure first, then fix the real hot spots instead of guessing. The likely ones here are the big list and the search box.
+
+For search, typing re-filters the whole list on every keystroke. I'd mark that work as low priority so typing stays smooth while the list catches up. For the list, virtualization. And I'd memoize the expensive bits so they don't recompute when unrelated state changes. I wouldn't sprinkle memoization everywhere — only where the profiler says it matters.
+
+**Q39. How would you measure performance?**
+
+Two levels. For the app loading, I'd run Lighthouse and watch the core web vitals — how fast the main content shows, layout shift, responsiveness. I'd put a budget in CI so a regression fails the build.
+
+For runtime, I'd use the React profiler to find components re-rendering too often, and the browser performance tab for slow interactions. Numbers first, then fix.
+
+**Q40. Where are the bottlenecks?**
+
+Today, the likely ones are the trace table with a lot of rows, the search filtering on every keystroke, and the heavier libraries — the editor, the charts, the drag-and-drop — adding to the bundle.
+
+None of them bite at mock-data size, but those are the three I'd watch as the data and the app grow.
+
+**Q41. What performance work have you done?**
+
+At MyBizz I cut the initial load time roughly in half. The main wins were splitting the code so each page only loads what it needs, and loading heavy parts only when they're actually used instead of upfront.
+
+I also did render work — finding components that re-rendered too much and fixing the cause, usually unstable props or state living too high up. So it's been both load-time and runtime.
+
+### Follow-ups
+
+- **React.memo?** I use it when a component is expensive and its props don't change often. It's not free, so I don't wrap everything — only where the profiler shows repeated wasted renders.
+- **useMemo?** Same idea, for expensive calculations. For cheap values it's not worth it — the memo check can cost more than just recomputing.
+- **Virtualization?** Yes, that's the main fix for big lists and the table. Only render what's visible.
+- **Code splitting?** Definitely. Split by route so a page only ships its own code. I did this at MyBizz.
+- **Lazy loading?** Load heavy things like the editor or charts only when they're needed, not on first paint.
+- **Image optimization?** Use the framework's image handling — right size, modern formats, lazy load below the fold.
+- **Bundle size?** Watch it, import directly instead of through big index files, and split out the heavy libraries.
+
+---
+
+## Scalability
+
+**Q42. How would you scale this application?**
+
+The front-end structure already scales reasonably because it's split by layer and feature. The scaling work is mostly about data. I'd page the data from a server instead of loading it all, virtualize the long lists, and move the heavy read pages to render on the server so the browser ships less.
+
+So it's less about rewriting and more about changing where the data comes from and how much arrives at once.
+
+**Q43. What changes if there are one million traces?**
+
+At that point you never load it all — the server does the heavy lifting. The UI asks for a page at a time, with filters and search handled by the backend, not in the browser.
+
+The table virtualizes so the DOM stays small no matter how much data exists. And the dashboard numbers get computed on the server or precomputed, instead of looping over a million records in the browser. The front-end mostly just renders what it's given.
+
+**Q44. How would you support multiple organizations?**
+
+I'd scope the data by organization on the backend, and carry the current org through the app — usually in the URL or a context near the top. Every data request includes which org you're in, and the server makes sure you only see your own.
+
+On the UI side it's small — an org switcher and making sure nothing assumes a single org. The real work is on the backend, keeping data properly separated.
+
+**Q45. How would you handle real-time updates?**
+
+For something like traces streaming in, I'd use a WebSocket so the server can push new data as it happens. New traces appear at the top without a refresh.
+
+If real-time wasn't critical, polling every few seconds is simpler and often good enough. I'd start with polling and only move to sockets when the live feel actually matters, because sockets add complexity.
+
+**Q46. How would you sync data between users?**
+
+The server is the source of truth, and everyone reads from it. For changes, I'd use optimistic updates — show the change immediately, then confirm with the server, and roll back if it fails.
+
+If two people edit the same thing, you need a rule for who wins, or a way to merge. For most of this app last-write-wins is fine; only something like collaborative editing would need real conflict handling.
+
+**Q47. How would you support offline mode?**
+
+I'd cache the data locally and let the app read from that cache when there's no connection. Changes get queued and sent once you're back online.
+
+It's a bigger feature, so I'd only build it if users actually need it. A tool like this is usually used online, so I'd confirm the need before spending the time.
+
+### Follow-ups
+
+- **WebSockets?** For true real-time, yes — the server pushes updates instead of the client asking.
+- **Polling?** Simpler alternative. Ask every few seconds. Good enough until the live feel really matters.
+- **Caching?** Cache server responses so you're not refetching the same thing, and to support offline reads.
+- **Pagination?** Yes, the core of handling large data — fetch a page at a time, cursor-based for big sets.
+- **Optimistic updates?** Show the change right away, confirm with the server, roll back on failure.
+
+---
+
+## Data Layer
+
+**Why static JSON?** Because a backend would've cost a lot of time and shown nothing about my front-end work, which is the point of the assignment. I still designed a clean data layer, so swapping in an API later is small.
+
+**How would you connect a backend?** I'd replace the functions that read the JSON with functions that fetch from the API, keeping the same shapes. Since the components only talk to that layer, they wouldn't change.
+
+**Where would API calls live?** In the data layer, not in components. Components ask a hook or a function for data; they don't know it came from an API. That keeps the fetching in one place.
+
+**How would loading work?** Each data fetch has a loading state, and I'd show a skeleton that matches the final layout so nothing jumps around. With server rendering and Suspense, I can stream content in as it's ready.
+
+**Error handling?** Catch the error in the data layer, show a friendly message with a way to retry, and use error boundaries so one failing section doesn't take down the page.
+
+**Retry strategy?** Retry a couple of times for network blips, with a growing delay between tries. But don't retry forever, and don't retry things that won't succeed — like a bad request.
+
+**Caching?** I'd use a data library that caches responses, so going back to a page is instant and the same request isn't fired twice.
+
+### Follow-ups
+
+- **TanStack Query?** That's what I'd reach for on the client. It handles caching, dedup, retries, and background refresh, so I'm not hand-rolling all that.
+- **Server Components?** Yes for the read-heavy pages — fetch on the server, ship less JavaScript, faster first paint.
+- **Suspense?** Use it to show the page shell instantly and stream the slow parts in as they load.
+- **Streaming?** Pairs with Suspense — the server sends HTML in pieces so the user sees something fast.
+- **Prefetching?** Prefetch the likely next page, like on hover, so it feels instant when they click.
+
+---
+
+## State Management
+
+**Why Context?** Because the shared state is small, and Context is just React — nothing extra to learn. It was enough for the issues list, sidebar, shortcuts, and settings.
+
+**What belongs in Context?** State that several components across the tree need to share, and that doesn't change too often — like the current settings or the issues list.
+
+**What shouldn't?** Anything local to one component, and anything that changes very fast. Fast-changing state in a Context re-renders everything under it. That's why I put notifications in a small external store instead.
+
+**When would you move to Zustand?** When more parts of the app need to read and write the same state, or when I need to update without re-rendering half the tree. Zustand lets components subscribe to just the slice they care about.
+
+**How would you sync state?** With a backend, the server becomes the source of truth and a data library keeps the UI in sync. Across tabs, I'd use a storage event or the broadcast channel so one tab's change shows in the others.
+
+**Why localStorage?** So issue edits survive a refresh without a backend. It was the simplest way to make the app feel real for the demo.
+
+### Follow-ups
+
+- **Session persistence?** localStorage already persists across sessions. For login-style state I'd use a cookie or token instead.
+- **Multiple browser tabs?** Right now tabs don't sync, and my ID counter could clash across tabs. I'd fix that with a storage event to sync, and unique IDs instead of a counter.
+- **Race conditions?** With local data there aren't many, but with a server I'd use optimistic updates with rollback, and make sure a slow response can't overwrite a newer change.
+
+---
+
+## Testing
+
+**Why didn't you write tests?** That was a time call. With fixed mock data, the riskiest part is the interactions and how things render, not the logic branching. So I spent the time getting the interactions actually right by hand — keyboard nav, focus, drag and drop — instead of writing shallow tests that pass but don't catch those. I also kept the logic separate so tests drop in cleanly later.
+
+**What would you test first?** The plain logic functions — flattening traces, computing stats, the next-ID logic. They're fast, no UI needed, and a bug there shows up everywhere.
+
+**Unit vs integration?** Unit tests for the logic functions and small components. Integration tests for the flows that matter — create an issue and check it sticks, drag a card and check it moves. The flows give the most confidence per test.
+
+**Why Playwright?** For the full flows in a real browser — clicking through creating an issue, dragging cards. It tests what the user actually does, end to end.
+
+**Why RTL?** React Testing Library tests components the way a user sees them — by text and role, not internal details. So the tests don't break every time I refactor.
+
+**Why Vitest?** It's fast and fits the setup well. It's the test runner for the unit and component tests.
+
+**How would CI look?** On every pull request: type-check, lint, format check, then the unit and component tests. The heavier browser tests run on merge. If anything's red, it doesn't merge.
+
+**What shouldn't be tested?** Third-party libraries — I trust those. And exact styling or implementation details, because those change and the tests would just be noise. Test behavior, not internals.
+
+### Follow-ups
+
+- **Mocking?** I mock the network only — the actual API calls. I don't mock my own hooks or stores, because then you're testing the mock, not the real thing.
+- **Coverage?** A useful signal, not a target. High coverage on the logic matters; chasing 100% everywhere wastes time.
+- **Accessibility testing?** Yes — I'd run an automated a11y check on components so contrast and missing labels fail the build.
+- **Visual regression?** Storybook plus screenshot testing to catch styling changes I didn't mean to make.
+
+---
+
+## Validation
+
+**Why no Zod?** Because right now every piece of data is JSON I wrote myself, and TypeScript already covers it. A schema would be checking data that can't really be wrong. The one real gap is where I read issues back from localStorage — that's a parse with no check, so a hand-edited or stale value would slip through. That's the exact spot I'd add validation first.
+
+**Where would you introduce it?** Anywhere data comes from outside my code — API responses, localStorage, and URL params. Those are the edges where TypeScript's guarantees stop.
+
+**Why validate API responses?** Because the API can change or send something unexpected, and TypeScript only checks at compile time. A schema checks at runtime, so bad data fails loudly at the edge instead of crashing somewhere deep in the UI.
+
+**Would you validate forms?** Yes. A schema for the form gives you validation and good error messages, and I can share the same schema with the backend so the rules match.
+
+**Would you validate URL params?** Yes — they're user input, basically. If a trace ID in the URL is malformed, I want to catch that and show a not-found, not pass garbage down.
+
+**Would you validate localStorage?** That's the first place I'd add it here. Parse it, check the shape, and fall back to the seed data if it's wrong instead of throwing.
+
+### Follow-ups
+
+- **Runtime vs compile-time safety?** TypeScript checks while you write code. It's gone at runtime. A schema checks the real data while the app runs — that's why you need both.
+- **Why TypeScript isn't enough?** Because a type is just a promise. The moment data comes from outside — an API, storage, the URL — TypeScript trusts it blindly. A schema actually checks it.
+
+---
+
+## Accessibility
+
+**How accessible is your application?** Reasonably, because I built on accessible primitives and used semantic HTML. Everything important works from the keyboard, focus is visible, and the contrast meets the standard. There's more I'd do for a full audit, but the foundation is there.
+
+**Keyboard navigation?** Strong here — you can move through lists, open things, run commands, and switch pages without a mouse. That was a priority since it's a power-user tool.
+
+**Focus management?** Handled mostly by the primitives — focus moves into a dialog when it opens and comes back when it closes. And every control has a visible focus ring from the tokens.
+
+**Screen readers?** The semantic HTML and the primitives' ARIA cover a lot. For a real audit I'd test with an actual screen reader and add labels where icon-only buttons need them.
+
+**ARIA?** I use it to fill gaps, not as the first tool. Semantic HTML first, ARIA only where there's no native element for it. Wrong ARIA is worse than none.
+
+**Semantic HTML?** Yes — real buttons, real headings, lists where things are lists. It's the cheapest way to be accessible and it helps SEO too.
+
+**Color contrast?** Built into the tokens — I aimed for the AA standard, and dark mode has its own values so it stays readable.
+
+**Reduced motion?** The animations respect the reduced-motion setting, so the splash and transitions calm down for people who don't want them.
+
+### Follow-ups
+
+- **How would you test accessibility?** Automated checks in CI for the easy stuff, then manual keyboard and screen-reader testing for the things tools can't catch.
+- **Which components are hardest?** The custom ones with rich interaction — the table with its keyboard nav, and anything like a combobox. That's where I'd lean on a library like React Aria to get the behavior right.
+
+---
+
+## Code Quality
+
+**Which file are you least happy with?** The issues context, because it reads from localStorage on every change instead of trusting React state. It works, but it's doing extra work and it's a little confusing to follow.
+
+**What technical debt exists?** No tests, no validation at the edges, the type casts in the trace flattening, and a notification timer that's set so high notifications basically never clear on their own. I know where each one is.
+
+**What code smells do you see?** The repeated localStorage reads, the casts, some magic numbers in the stats file, and a couple of hardcoded lists — like the assignee names in the board — that should come from the data.
+
+**Which component would you rewrite?** The trace detail panel. It's grown to handle too much, so I'd split it into smaller pieces and pull the navigation into a hook.
+
+**What naming conventions did you follow?** Components in PascalCase, hooks start with `use`, plain helpers in camelCase. Files named after what's in them, one main thing per file. Nothing surprising, which is the point.
+
+**How do you review your own code?** I read it like someone seeing it for the first time and ask if the names explain themselves and if any file is doing too much. Then I look for the edges — what happens with bad data, empty states, errors. That's usually where the gaps are.
+
+---
+
+## Improvements
+
+**What would you improve with more time?** First the foundation — CI, tests starting with the logic, and validation at the edges. Then connect a real backend, move read-heavy pages to the server, and virtualize the table. I'd do it in stages, foundation before features.
+
+**What features would you build next?** Filtering and saved views on traces, real-time updates, and search plus bulk actions on issues. They all sit naturally on top of what's there.
+
+**What corners did you cut?** Tests, validation, the backend, and full mobile. All on purpose, to spend the time on the components and interactions.
+
+**What compromises did you make?** The main one was depth of polish over breadth of features — I'd rather have fewer things that feel right than more things that feel half-done.
+
+**What would production require?** Real data with validation, tests and CI defending it, error tracking, monitoring, and proper empty, loading, and error states everywhere. Plus the component library documented and versioned.
+
+### Follow-ups
+
+- **CI/CD?** Run type-check, lint, and tests on every change, and deploy automatically when they pass.
+- **Monitoring?** Watch the core web vitals and key flows so I know when something slows down for real users.
+- **Error tracking?** Something like Sentry to catch front-end errors in the wild, with enough context to debug.
+- **Analytics?** Track what people actually use so decisions are based on real behavior, not guesses.
+- **Feature flags?** Ship things off by default and turn them on gradually, so I can roll back without a deploy.
+
+---
+
+## Self Critique
+
+**What's the weakest part of your implementation?** The issues data flow. Reading from localStorage on every change is the thing I'd fix first — React state should be the source of truth, and saving should just be a side effect.
+
+**What would you refactor?** That data flow, the type casts in the trace flattening, and the detail panel that's doing too much.
+
+**What would you delete?** A couple of unused bits and that overly long notification timer. And I'd replace the hardcoded assignee list with something derived from the data.
+
+**Which decision would you reconsider?** Making everything a client component. For a static demo it was fast, but the read-heavy pages really should render on the server. That's the architecture call I'd revisit first.
+
+**What didn't go as planned?** The keyboard navigation in the table took longer than I expected once grouping came in. I had to track the visible rows separately, which I didn't see coming at the start.
+
+**If you started over, what would change?** I'd set up CI and a test scaffold on day one, decide upfront which pages render on the server, and define the data shapes with a schema before building on them. Same product, sturdier base.
+
+---
+
+## Product Engineering
+
+**How would users discover issues faster?** Tighten the path from a bad trace to an issue. If an alert fires, I want one click to the trace and one click to open an issue from it, with the context already filled in.
+
+**What metrics would you add?** The ones that map to debugging — how long traces take, where errors cluster, cost per model, and which agents fail most. Things that point you at the problem.
+
+**How would you improve onboarding?** Good empty states that double as guidance — when there's no data, explain what the screen is for and how to get data flowing, instead of a blank page.
+
+**How would you reduce cognitive load?** Show less by default and reveal detail on demand. Strong hierarchy so the eye knows where to go, and color only for status so the screen stays calm. That was already the design goal.
+
+**How would you make this feel faster?** Optimistic updates so actions feel instant, skeletons so nothing jumps, prefetching the likely next page, and keeping typing and scrolling smooth even on big lists.
+
+**What would delight power users?** Everything reachable by keyboard, a fast command menu, saved views and filters, and copy-the-ID style shortcuts. The small things that add up when you're in the tool all day.
+
+---
+
+## Collaboration
+
+**If a designer disagreed with your implementation?** I'd hear them out and try to understand what they're seeing, because they're usually catching something I'm too close to. If it's a real improvement, I change it. If there's a technical reason it's hard, I explain the trade-off and we find a middle ground. Being both designer and engineer, I have this conversation with myself a lot.
+
+**If backend changed the API?** Since the fetching lives in one layer, I'd update there and keep the shapes the components expect the same. A schema at that edge would catch the change early instead of it breaking the UI quietly.
+
+**If PM wanted a new workflow?** I'd understand the user problem behind it first, then see how it fits what's there. Most new workflows are a new arrangement of existing pieces, so I'd reuse components and add where needed.
+
+**If another frontend engineer joined tomorrow?** The folder structure and one-thing-per-file should get them moving quickly. I'd walk them through the layers, point them at the component library, and have them start on a small feature to learn the patterns. I've onboarded juniors this way at MyBizz.
+
+---
+
+## Real Production Questions
+
+**How would you deploy this?** It's a Next.js app, so somewhere like Vercel fits naturally — push to main, it builds and deploys. Preview deploys on pull requests so you can see changes before they go live.
+
+**How would you monitor it?** Track the core web vitals and key flows in the field, plus uptime. So I find out something's slow from the data, not from a user complaint.
+
+**How would you detect frontend errors?** An error tracking tool like Sentry, with source maps so I get a real stack trace, and enough context to reproduce it.
+
+**How would you roll back a release?** With a platform like Vercel you can flip back to the previous deploy quickly. That's a big reason I'd want feature flags too — turn a feature off without a full rollback.
+
+**How would you handle feature flags?** Ship risky things off by default, turn them on for a few users, then widen it. If something's wrong, flip it off — no deploy needed.
+
+**How would you support multiple environments?** Separate setups for development, staging, and production, with config through environment variables so the same code runs in each.
+
+**How would you handle secrets?** They never go in the front-end code. Secrets live on the server, in environment variables or a secrets manager. Anything in the browser bundle is public, so it can't hold a secret.
+
+**How would you secure this application?** Real auth and access control on the backend, validate anything coming from the user, sanitize content before rendering it, and make sure people only see data they're allowed to. For an observability tool, keeping orgs' data separated is the big one.
+
+---
+
+## "What If..." Questions
+
+**What if the API becomes slow?** Show the page shell right away and stream the slow parts in, so it doesn't feel frozen. Cache what I can, prefetch likely next steps, and add loading states that don't shift the layout.
+
+**What if there are 10x more users?** That's mostly a backend question, but on the front-end I'd make sure I'm not over-fetching, cache well, and keep the bundle small so more users doesn't mean a heavier app.
+
+**What if another team wants to use your component library?** Then I'd pull it into its own package, document it in Storybook, and version it properly so they can update on their own schedule. That's the path I took with the UI Kit at MyBizz when multiple products needed it.
+
+**What if design changes next week?** Because of the tokens, a lot of design changes are just changing token values, and the whole app follows. Bigger changes touch components, but the structure means I'm editing in one place, not hunting through the app.
+
+**What if traces update every second?** I'd push updates over a WebSocket and add new traces to the top without a refresh. I'd batch the updates so a flood doesn't re-render constantly, and probably let the user pause the live feed while they're reading.
+
+**What if users open the app in multiple tabs?** Right now tabs don't sync and my ID counter could clash. I'd sync changes across tabs with a storage event and switch to unique IDs so two tabs can't collide.
+
+**What if offline support is required?** Cache the data locally, read from the cache when offline, and queue changes to send when the connection's back. It's a real feature, so I'd confirm users need it before building it.
+
+**What if the assignment became a production product tomorrow?** First week: CI and tests on the logic, validation at the data edges, and a real backend with the read-heavy pages rendering on the server. Get the foundation solid, then keep building features on it.
+
+**What if you had to support mobile?** I'd design the small screen properly rather than just shrinking the desktop — bigger touch targets, no hover-only actions, and rethinking dense tables for a narrow screen.
+
+**What if your component library had 500 components?** Then organization and docs matter more than the components themselves. Storybook as the source of truth, clear categories, strong search, and tests so changing one doesn't quietly break others. Consistency has to be the default, not something you check by hand.
+
+---
+
+## The 10 to Prepare First
+
+These come up most and let you show how you think.
+
+1. **Walk me through your architecture.** → Q2 / Q3 above. Layers, one direction, swap the data without touching UI.
+2. **Why did you build it this way?** → One job per layer, easy to understand, easy to change.
+3. **What trade-offs did you make?** → Q7. Tests, validation, backend cut on purpose for component and interaction quality.
+4. **Why didn't you write tests?** → Time call; interactions were the risk; logic is split out so tests drop in. Plan ready.
+5. **Why no Zod validation?** → Data's all mine and typed; the one real gap is reading localStorage; that's where I'd add it first.
+6. **How would you scale this?** → Page data from the server, virtualize lists, render heavy pages on the server.
+7. **What would you improve with another week?** → Foundation first — CI, tests, validation — then backend and virtualization.
+8. **Biggest weakness?** → The issues data flow reading localStorage on every change.
+9. **If this became production, what changes first?** → Real data with validation, tests and CI, and server rendering for read pages.
+10. **Decision you're most proud of?** → The component library — composition over flags, typed variants, built on accessible primitives so the look is mine and the behavior is correct. Same thinking as the UI Kit I shipped across six products.
+
+---
+
+### Final reminders for the room
+
+- Start with the answer. Then why. Then the trade-off. Then a tie-back to real work if it fits.
+- Short sentences. Contractions. Talk like you're explaining to another engineer.
+- Never defensive. A cut feature was a decision, not a mistake — explain the decision.
+- If you don't know something: "I haven't used that directly, but here's how I'd approach it."
+- Don't oversell. You've got 3\+ years and a real design system shipped across six products. That's enough — let it speak plainly.
