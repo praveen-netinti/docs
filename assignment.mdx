@@ -1,0 +1,195 @@
+---
+title: "Assignment"
+---
+
+# Assignment / Technical Deep-Dive — Prep (30 min)
+
+> This is a grilling round on **the code you wrote** and **the design choices you made**. They will probe: what the components are, modularity, why no tests, why no zod, how you'd extend it, scale it, and make it faster. Goal: sound like a senior design engineer who made **deliberate, scoped trade-offs** — not someone who forgot things.
+
+---
+
+## 0. The one-line framing to open with
+
+> "I scoped this as a **production-quality front-end slice** of an LLM observability product — Linear-grade UI, a real component library underneath, and static mock data so the whole thing runs with zero backend. I deliberately spent my time budget on **component architecture, interaction quality, and accessibility** rather than on a test suite or runtime validation, because with fixed mock data those would have been lower-leverage. I'm happy to walk through exactly where I'd invest next and why."
+
+This sentence pre-empts half their questions: it signals you _chose_ the trade-offs.
+
+---
+
+## 1. What did you build? (architecture tour)
+
+Keep this to ~90 seconds. Structure it top-down.
+
+- **App shell:** Next.js 16 App Router, React 19, TypeScript (strict). An "inverted-L" chrome — persistent sidebar \+ thin header — using a route group `(main)` so the layout wraps every page and only the content region swaps.
+- **Pages:** Dashboard (metrics \+ charts), Traces (table \+ resizable detail panel with tree/waterfall), Issues (Linear-style list **and** kanban board), Alerts (Slack-style incident cards), Settings (modal).
+- **Component library (~40 primitives in `src/components/ui`):** Button, Input, Select, Badge, Table, Modal, Drawer, Popover, Tooltip, Tabs, Accordion, Command menu, Data-table, etc. This is the layer the rest of the app is composed from.
+- **State:** React Context for cross-cutting concerns (issues, sidebar, shortcuts, settings) \+ an external-store pattern for notifications. `localStorage` persistence for issues so edits survive reloads.
+- **Data:** static JSON (`traces.json`, `slack-cards.json`) \+ typed selectors in `src/lib` (`dashboard-stats.ts`, `flatten-traces.ts`) that transform raw data into view models.
+- **Design system:** Tailwind v4 with **semantic CSS-variable tokens** (`bg-bg-weak-50`, `text-text-sub-600`, `shadow-button-primary-focus`) — light/dark via `next-themes` flip the same tokens.
+
+**Why this matters to them:** they're hiring someone to _own and architect the component library_. Lead with that layer, not the pages.
+
+---
+
+## 2. "Walk me through a component. Why is it built that way?" → Button
+
+This is your strongest artifact. `src/components/ui/button.tsx` shows real component-library craft:
+
+- **Compound component, not boolean soup.** It exports `Button.Root` \+ `Button.Icon`, not a single `<Button leftIcon rightIcon loading>` with ten booleans. This is the Vercel composition pattern — _avoid boolean-prop proliferation, use composition._ The icon is a child, so consumers control placement.
+- **`tailwind-variants` (`tv`) with slots \+ compound variants.** Variants are `variant` (primary/neutral/error) × `mode` (filled/stroke/lighter/ghost) × `size`. The actual styles live in `compoundVariants` so each valid combination is explicit and type-safe via `VariantProps`. No runtime `if/else` styling.
+- **Polymorphism \+ `asChild`.** `as` prop (polymorphic types in `utils/polymorphic.ts`) and Radix `Slot` let a Button _become_ a link or render its child as the element — no wrapper div, correct semantics.
+- **`recursiveCloneChildren`** propagates the root's `variant/mode/size` down to `Button.Icon` so the icon auto-matches the button without the consumer re-passing props. That's the "shared context" idea done lightly.
+- **`forwardRef` \+ `useId`** for ref-forwarding and a11y wiring.
+- **`cn()`** = `clsx` \+ a custom `extendTailwindMerge` (I extended the merge config with our typography class-groups like `text-label-sm` so conflicting Tailwind classes resolve correctly).
+
+> Soundbite: _"I treat every primitive as library code, not app code — composition over configuration, type-safe variants, polymorphic, ref-forwarding, and theme-token driven. That's the contract the rest of the team builds on."_
+
+---
+
+## 3. "Do you understand modularity / how is the code organised?"
+
+Layered, dependency flows one direction:
+
+```text
+data (json)  →  lib/* (typed selectors, pure fns)  →  contexts/hooks (state)  →
+components/ui (dumb primitives)  →  components/<feature> (composed)  →  app/* (routes)
+```
+
+- `components/ui` = **generic, app-agnostic** primitives (could ship as an npm package tomorrow).
+- `components/<feature>` (traces, issues, slack, settings) = **domain** components composed from primitives.
+- `lib/*` = **pure, testable** logic deliberately separated from rendering (`dashboard-stats.ts`, `flatten-traces.ts`, `issues-store.ts`). This separation is _exactly_ what makes the "no tests yet" answer credible — the logic is already isolated and unit-testable.
+- `config/shortcuts.ts` = single source of truth for keybindings (referenced by the command menu, the shortcuts drawer, and the hotkey layer — no duplication).
+
+Cite the **single-responsibility-per-file** principle (one domain component/hook per file).
+
+---
+
+## 4. "Why didn't you write tests?" (the big one — answer with conviction)
+
+Do **not** apologise. Frame as a time-budget allocation, then show you know exactly what you'd do.
+
+**The answer:**
+
+> "Against fixed mock data, the highest-risk surface is _interaction and rendering_, not business logic branching. In a fixed-deadline take-home I chose to spend the test budget on getting interactions actually right by hand — keyboard nav, focus traps, drag-and-drop, the resizable panel — because a shallow snapshot suite would have given false confidence without catching those. I structured the code so tests drop in cleanly: pure logic is already isolated in `lib/`, and components are composition-based."
+
+**Then the concrete plan (this is what scores points):**
+
+| Layer | Tool | What I'd test |
+| --- | --- | --- |
+| Pure logic | **Vitest** | `dashboard-stats`, `flatten-traces`, `getNextId`, issue reducers — fast, no DOM |
+| Components | **React Testing Library** | Button variants render, Select keyboard nav, Modal focus trap |
+| Behaviour / a11y | **jest-axe** | assert zero a11y violations per primitive |
+| Critical flows | **Playwright** | create issue → persists, drag card across kanban columns, open trace → notification |
+| Visual | **Storybook \+ Chromatic** | catch unintended visual regressions in the component library |
+
+**Senior signal — mock-only-the-network (from the react-best-practices testing rule):**
+
+> "I prefer **behaviour-driven tests that drive the real stack and mock only the network boundary** — I don't `vi.mock` our own hooks or stores, because that tests the mock, not the product. Here that means swapping `localStorage`/the JSON source, not stubbing `useIssues`."
+
+**Wire it to CI:** "And I'd gate it — GitHub Actions running typecheck \+ eslint \+ prettier \+ vitest on every PR, Playwright on merge to main, so the test suite actually _defends_ the quality bar instead of rotting."
+
+---
+
+## 5. "Why no zod validation?" (second big one)
+
+Be precise about _where_ validation belongs.
+
+**The honest answer:**
+
+> "Right now every data source is static JSON I authored and TypeScript already covers it at compile time, so a schema would be validating data that can't be malformed. The moment that stops being true — and I can point to the exact line — is `loadIssues()` in `issues-store.ts`: it does a raw `JSON.parse(localStorage.getItem(...))` and casts to `Issue[]`. That's an **unvalidated trust boundary**: a stale or hand-edited localStorage payload would flow in as a lying `any`."
+
+**Where zod earns its place:**
+
+- **Parse, don't validate at every boundary the data is untrusted:** `localStorage` reads, and any future `fetch` from a real traces/issues API.
+- `const Issue = z.object({...}); const Issues = z.array(Issue);` then `Issues.safeParse(raw)` → on failure, fall back to seed data instead of crashing the app.
+- **Single source of truth for types:** infer the TS type from the schema (`z.infer<typeof Issue>`) so the runtime schema and compile-time type can never drift.
+- For an _observability_ product specifically, ingesting spans/traces from the wild is the canonical zod use case — malformed telemetry is the norm, not the exception.
+
+> Soundbite: _"Zod is for the boundary where TypeScript's guarantees end. I left it out because this build has no live boundary — but I can show you the exact `JSON.parse` where I'd add it first."_
+
+---
+
+## 6. "How would you extend / scale this?"
+
+Have a layered answer ready — small wins → architecture.
+
+**Data & rendering scale (10k\+ traces):**
+
+- **Virtualisation** — `@tanstack/react-virtual` for the traces table and kanban columns so DOM stays flat.
+- **`content-visibility: auto`** on long off-screen rows (cheap CSS win, from the rendering rules).
+- Server-side pagination \+ cursor when a real API lands; keep selectors pure so swapping the source is local.
+
+**Real backend:**
+
+- Move read-heavy pages to **RSC / Server Components** — fetch traces on the server, stream with **Suspense boundaries** so the shell paints instantly and rows stream in (avoids the client waterfall).
+- **TanStack Query / SWR** for the client-mutated parts (issues) — request dedup, caching, optimistic updates.
+- zod at the fetch boundary (see §5).
+
+**Component library as a product:**
+
+- Extract `components/ui` into a versioned package with **Storybook docs \+ changesets \+ semver releases**, consumed by the app via workspace. This is literally the "architect the component library the team builds on" part of the JD.
+
+**Eliminate the context smell:** today providers stack at the root. I'd split by concern \+ colocate, and for hot, frequently-changing state move to an external store (the notification pattern already does this) to avoid re-rendering the whole tree.
+
+---
+
+## 7. "What would you improve if you had more time?" (production-grade checklist)
+
+Rattle these off — each is a keyword they'll recognise. Group them so it sounds like a plan, not a list.
+
+**Engineering hygiene / DX**
+
+- GitHub Actions CI: typecheck → eslint → prettier check → vitest → Playwright; block merge on red.
+- **Husky \+ lint-staged** pre-commit; **conventional commits**; **changesets** for major/minor/patch \+ a CHANGELOG.
+- Prettier import-sorting (`@ianvs/prettier-plugin-sort-imports`) is already wired — extend the convention.
+
+**Performance / Web Vitals (target 100/100)**
+
+- **Lighthouse / Web Vitals** budget in CI; resolve **render-blocking resources**; preload fonts (already self-hosted woff2 \+ `next/font`), set `font-display`.
+- **Bundle size:** the editor (Tiptap), charts (recharts), and dnd-kit are heavy — `next/dynamic` them so they're **code-split** and only load on the routes that use them. Avoid barrel-file imports; import direct.
+- **React render perf:** profile critical renders, memoise expensive subtrees, `useDeferredValue`/`startTransition` for filtering/search so typing stays at 60fps, functional `setState` for stable callbacks.
+- **CWV specifics:** stable layout (no CLS), `content-visibility` for long lists, defer third-party/analytics until after hydration.
+
+**Correctness / robustness**
+
+- zod at boundaries (§5), error boundaries per route, real loading/empty/error states.
+- Tests \+ a11y assertions (§4).
+
+**A11y & polish**
+
+- Audit with axe; ensure every interactive primitive is keyboard-reachable with visible focus (the design tokens already define `focus-visible` shadows); prefers-reduced-motion on the splash/animations.
+- "I'd reach for **React Aria** primitives where I need bullet-proof a11y behaviour (combobox, listbox, date-picker) instead of hand-rolling ARIA — it ships the WAI-ARIA interaction patterns for free."
+
+---
+
+## 8. "Any other concerns about the code?" (self-critique = maturity)
+
+Volunteer 2–3 _real_ smells before they find them. It reads as ownership.
+
+1. **`issues-context` re-reads `localStorage` on every mutation** (`loadIssues()` inside add/update/delete) instead of trusting React state — works for mock scale, but it's a correctness/perf smell I'd fix by making React state the source of truth and persisting as a side-effect.
+2. **`notificationTimeouts` REMOVE\_DELAY is ~16 minutes** (`1000000ms`) — inherited from the shadcn toast pattern; effectively notifications never auto-clear. I'd set a real TTL.
+3. **Module-level mutable `counter`** in `issues-store` for ID generation — fine single-tab, would collide across tabs; a real backend or `crypto.randomUUID()` fixes it.
+4. **Everything is `"use client"`** — appropriate for an interactive prototype, but with a real API the read-heavy pages should be Server Components for a smaller client bundle and faster first paint.
+
+> Volunteering these is a flex: it shows you read your own code critically and know exactly what "production" would demand.
+
+---
+
+## 9. Likely rapid-fire Qs → one-line answers
+
+- **"Why Tailwind over CSS-in-JS?"** Zero runtime cost, atomic classes, and semantic tokens give theming for free; `cn()`\+tailwind-merge resolves conflicts. CSS-in-JS adds runtime \+ serialization overhead.
+- **"Why `tailwind-variants` over plain `clsx`?"** Type-safe variant API, compound variants, slots — it's the contract that keeps the library consistent as it grows.
+- **"Why Context and not Redux/Zustand?"** Scope is small and reads are localised; Context is enough. For high-frequency state I already use an external store (notifications). I'd reach for Zustand/Jotai before Redux.
+- **"Radix — why?"** Unstyled, accessible primitives (focus management, ARIA, keyboard) so I own the _look_ and they own the _behaviour correctness_. That's the right division for a design engineer.
+- **"How do you keep dark mode correct?"** Single set of semantic tokens; `next-themes` flips the variable values, components never hardcode a color. Add a token, both themes get it.
+- **"Biggest risk in this codebase?"** The unvalidated `localStorage` boundary and absence of CI to defend the quality bar as it grows.
+- **"How long did it take?"** Be honest; emphasise where the time _went_ (interaction polish \+ the primitive layer).
+
+---
+
+## 10. Tone reminders for this round
+
+- Every "why didn't you…" = "I made a scoped trade-off, here's the reasoning, here's exactly what I'd do next."
+- Name-drop production keywords naturally: _trust boundary, code-splitting, virtualization, RSC \+ Suspense streaming, Web Vitals budget, request dedup, optimistic updates, compound components, semantic tokens._
+- You have 3\+ years shipping enterprise products and a published component library across 6\+ apps — speak from that: _"In my UI Kit at MyBizz I solved exactly this when…"_
+- It's a conversation, not a defense. Agree where they're right ("yep, that's a real gap"), then show the fix.

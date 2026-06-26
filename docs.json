@@ -31,7 +31,17 @@
           "icon": "newspaper"
         }
       ]
-    }
+    },
+    "groups": [
+      {
+        "group": "Getting Started",
+        "pages": [
+          "index",
+          "quickstart",
+          "assignment"
+        ]
+      }
+    ]
   },
   "logo": {
     "light": "/logo/light.svg",
