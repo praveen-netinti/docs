@@ -38,7 +38,9 @@
         "pages": [
           "index",
           "quickstart",
-          "assignment"
+          "assignment",
+          "design",
+          "behavioural"
         ]
       }
     ]

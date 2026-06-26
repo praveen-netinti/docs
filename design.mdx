@@ -1,0 +1,135 @@
+---
+title: "Design"
+---
+
+# Design Round — Prep (~15 min)
+
+> This slot tests **design sense and taste**, not Figma trivia. They want to see that you have _strong, defensible opinions_ about spacing, motion, and interaction — and a real workflow. The JD literally says: _"Design is your primary craft, and code is how you bring it to life."_ Speak like a designer who ships, and use your own NeoSigma build as the evidence.
+
+---
+
+## 0. The 30-second positioning
+
+> "My design philosophy is **reduce, then refine**. Get the information hierarchy and rhythm right with the least amount of UI possible, then earn every pixel of decoration. I designed the NeoSigma dashboard the way Linear thinks about product — quiet, dense, fast — and I built it in the same week, which is the loop I care about: design decisions validated in real code, not just in a Figma frame."
+
+---
+
+## 1. Your design principles (have 4–5 crisp, ownable ones)
+
+Tie each to something visible in your assignment so it's concrete, not theory.
+
+1. **Hierarchy through type and space, not boxes.** Emphasis comes from weight, size, and spacing — hairline borders and flat surfaces over drop-shadows. _(Your build: hairline `stroke-soft` borders, shadows reserved for focus rings only.)_
+2. **A strict color budget.** Neutral grays for chrome; green/amber/red reserved _exclusively_ for status (success/running/error). Color is information, not decoration. _(Status badges, error traces.)_
+3. **Density with rhythm.** Dense data UIs still need a consistent spacing scale and baseline grid — tabular numerals for metrics, a mono face for IDs/code so columns align. _(JetBrains Mono for trace IDs.)_
+4. **Motion with intent.** Animation communicates state change and spatial continuity (where did this come from / go to). It should be fast (150–250ms), eased, and respect `prefers-reduced-motion`. Never animate for decoration.
+5. **Accessible by construction.** Visible focus states, keyboard-first navigation, AA contrast, semantic HTML. _(Every primitive has `focus-visible` tokens; the whole app is keyboard-drivable.)_
+
+> Pick the 3 that feel most _you_ and rehearse them out loud. Strong opinions, stated calmly.
+
+---
+
+## 2. Common UI/UX theory questions → sharp answers
+
+**"What makes a good interface?"**
+
+> Clarity, feedback, and consistency. The user should always know where they are, what just happened, and what they can do next — with the least cognitive load. Good UI is _invisible_; you notice it only when it's bad.
+
+**"Spacing — how do you decide?"**
+
+> A spacing scale (4px base, geometric steps), not arbitrary values. Proximity = relationship: related elements sit closer, groups separated by larger gaps. I'd rather have _fewer_ spacing values used _consistently_ than pixel-perfect one-offs. Whitespace is an active design tool, not empty space.
+
+**"Typography?"**
+
+> A type scale with clear roles (display / title / label / paragraph / caption), limited weights, generous line-height for reading (1.4–1.6) and tighter for UI labels. Tabular numerals for data tables so digits don't jitter. _(I split type into semantic tokens — `text-label-sm`, `text-title-h3` — so the scale is enforced in code.)_
+
+**"Color & contrast?"**
+
+> Build on semantic tokens (background/surface/text/border \+ intent colors), not raw hex. Guarantee WCAG AA (4.5:1 body, 3:1 large/UI). Dark mode isn't "invert" — it's a re-mapped token set with adjusted contrast and reduced pure-black/white to cut eye strain.
+
+**"Visual hierarchy — how?"**
+
+> Size, weight, color, contrast, spacing, and position — in that rough order of power. The eye should land on the most important thing first. On the dashboard, the primary metric tiles read first, charts second, breakdowns last.
+
+**"Hick's / Fitts / Jakob's law?"** (know these three)
+
+> - **Hick's:** more choices = slower decisions → progressive disclosure, sensible defaults _(Display Options hide advanced grouping until asked)_.
+> - **Fitts's:** target acquisition time depends on size \+ distance → big tap targets, put actions near where the eye/cursor already is _(row "Open" button appears on hover, in place)_.
+> - **Jakob's:** users spend most time on _other_ products → meet conventions (⌘K palette, J/K nav, kanban drag) so there's nothing to learn.
+
+**"How do you handle empty / loading / error states?"**
+
+> They're first-class design work, not afterthoughts. Empty = onboarding opportunity (what is this, how do I fill it). Loading = skeletons that match final layout to avoid CLS. Error = human language \+ a recovery action. A design isn't done until all four states (empty/loading/error/success) are designed.
+
+**"Accessibility — how seriously, and how?"**
+
+> Non-negotiable. Semantic HTML first, ARIA only to fill gaps, keyboard parity with mouse, visible focus, AA contrast, `prefers-reduced-motion`, and screen-reader labels on icon-only controls. I lean on Radix / React Aria for the interaction patterns so I'm not re-implementing ARIA wrong.
+
+**"Mobile / responsive?"**
+
+> Content-first, breakpoint-second. Design the smallest viable layout, then let space earn complexity. Touch targets ≥44px, no hover-only affordances.
+
+---
+
+## 3. "What's your design workflow?" (have a clean narrative)
+
+Frame it as a loop, ending in code — that's the design-_engineer_ differentiator.
+
+1. **Understand** — the problem, the user, the constraints. What job is this screen doing? What's the one thing it must get right? (Talk to the founder/PM — you've done exactly this at MyBizz.)
+2. **Reference & diverge** — gather best-in-class patterns (Linear, Vercel, Stripe), understand _why_ they work, then explore a few directions low-fidelity. Don't polish too early.
+3. **Structure first** — wireframe hierarchy and flow in grayscale before color/polish. Get spacing and information density right while it's cheap to change.
+4. **Design system, not screens** — define tokens, type scale, and components once; compose screens from them. Consistency falls out for free and it maps 1:1 to code.
+5. **Prototype the interaction** — for anything motion- or state-heavy, prototype it (Figma/Framer or straight in React) because _feel_ can't be judged from a static frame.
+6. **Build & validate** — implement, test on real data and real devices, measure (perf, a11y), iterate.
+7. **QA the polish** — the last 10%: alignment, optical spacing, motion timing, focus order. This is where quality is won or lost.
+
+> Soundbite: _"I close the design–engineering gap by being both people. The handoff that usually loses quality doesn't exist when the designer ships the code."_
+
+---
+
+## 4. "Critique this" / "How would you improve X?" — a reusable framework
+
+If they show you a screen (or ask about your own), evaluate in this order:
+
+1. **Purpose** — what's the primary job, and does the layout serve it?
+2. **Hierarchy** — does my eye land in the right order?
+3. **Spacing & alignment** — consistent scale? optical alignment? grid?
+4. **Type & color** — roles clear? color carrying meaning, not noise?
+5. **States & edge cases** — empty/loading/error/long-content/zero-data?
+6. **Interaction & motion** — feedback on every action? transitions purposeful?
+7. **Accessibility** — keyboard, focus, contrast, labels?
+8. **Consistency** — does it match the system's patterns?
+
+Stating the framework _out loud_ is itself a strong signal — it shows design is a discipline for you, not vibes.
+
+---
+
+## 5. AI-native interfaces (the JD's "excited about what AI interfaces _can be_")
+
+Have a genuine opinion here — NeoSigma builds self-improving agent systems, so the surface is novel.
+
+- **Designing for non-determinism:** AI output is probabilistic, so UI must express **confidence, provenance, and uncertainty** — not pretend everything is a deterministic CRUD row. Show _why_ the system said something (the trace), not just _what_.
+- **Streaming as a first-class state:** tokens/spans arrive incrementally — design for progressive reveal, skeletons, and "still thinking" states rather than spinner-then-dump.
+- **Human-in-the-loop & trust:** observability is about debugging failures — the UI's job is to make a failing agent run _legible_ fast (the waterfall/tree view, the trace→issue→fix loop in my build).
+- **Keyboard-dense, expert tooling:** these are power-user tools (engineers debugging agents), so command palette, shortcuts, and density beat hand-holding — Linear, not a consumer app.
+- **Feedback loops in the UI:** for _self-improving_ systems, the interface is where humans correct the agent. Designing that correction surface to be low-friction is the actual product.
+
+> Soundbite: _"AI-native UI isn't a chat box. It's making non-deterministic systems observable, correctable, and trustworthy — surfacing confidence and provenance so a human can close the loop fast."_
+
+---
+
+## 6. Quick-fire taste questions
+
+- **"Favorite product design and why?"** Linear — restraint, density, speed, and motion that means something. (You literally cited their two redesign posts in your README — mention that.)
+- **"Shadows or borders?"** Hairline borders \+ flat surfaces for chrome; shadows reserved for elevation that genuinely floats (popovers, focus). Over-shadowing is the #1 amateur tell.
+- **"How do you know when a design is done?"** When removing anything makes it worse and adding anything makes it noisier — and all four states are designed.
+- **"Figma or code?"** Figma to think and align fast; code to decide — feel, timing, and responsiveness only tell the truth in the browser.
+- **"How do you keep consistency across a team?"** A token-driven design system \+ a component library as the single source of truth, documented in Storybook. Consistency should be the _default_, not a review note.
+
+---
+
+## 7. Tone reminders
+
+- Speak in **opinions with reasons**: "I'd do X _because_ Y," never "it depends" alone.
+- Use your build and your MyBizz design-system/landing-page work as living proof — you've _led_ design teams and published a UI kit across 6\+ products. That's senior design-engineer territory.
+- Show taste _and_ rigor: a spacing scale, a token system, AA contrast — taste backed by system thinking.
+- Reference Linear/Vercel/Stripe fluently; it signals you study the best and know _why_ they're good.
